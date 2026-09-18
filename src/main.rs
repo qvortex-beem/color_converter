@@ -366,107 +366,108 @@ where
 {
     loop {
         terminal.draw(|f| ui(f, app))?;
-
         if event::poll(Duration::from_millis(200))? {
             if let Event::Key(key) = event::read()? {
-                if key.kind != KeyEventKind::Press {
-                    continue;
-                }
-                if key.modifiers.contains(event::KeyModifiers::CONTROL) {
-                    let with_alt = key.modifiers.contains(event::KeyModifiers::ALT);
-                    match key.code {
-                        KeyCode::Char('v')
-                        | KeyCode::Char('V')
-                        | KeyCode::Char('м')
-                        | KeyCode::Char('М') => {
-                            match paste_from_clipboard() {
-                                Ok(text) => {
-                                    // Берём только первую строку и убираем пробелы/переводы строк
-                                    let cleaned =
-                                        text.lines().next().unwrap_or("").trim().to_string();
+                if key.kind == event::KeyEventKind::Press {
+                    let ctrl = key.modifiers.contains(event::KeyModifiers::CONTROL);
+                    let alt = key.modifiers.contains(event::KeyModifiers::ALT);
+                    if ctrl {
+                        match key.code {
+                            KeyCode::Char('v')
+                            | KeyCode::Char('V')
+                            | KeyCode::Char('м')
+                            | KeyCode::Char('М') => {
+                                match paste_from_clipboard() {
+                                    Ok(text) => {
+                                        // Берём только первую строку и убираем пробелы/переводы строк
+                                        let cleaned =
+                                            text.lines().next().unwrap_or("").trim().to_string();
 
-                                    // Санити-чек: оставляем только # и hex-символы
-                                    let filtered: String = cleaned
-                                        .chars()
-                                        .filter(|c| c.is_ascii_hexdigit() || *c == '#')
-                                        .collect();
+                                        // Санити-чек: оставляем только # и hex-символы
+                                        // let filtered: String = cleaned
+                                        //     .chars()
+                                        //     .filter(|c| c.is_ascii_hexdigit() || *c == '#')
+                                        //     .collect();
 
-                                    if filtered.is_empty() {
-                                        app.error = Some("В буфере нет HEX-цвета".into());
+                                        // if filtered.is_empty() {
+                                        if cleaned.is_empty() {
+                                            app.error = Some("В буфере нет HEX-цвета".into());
+                                        } else {
+                                            // Вставляем в поле, которое сейчас в фокусе
+                                            let field = app.current_field_mut();
+                                            // field.push_str(&filtered);
+                                            // app.status = format!("Вставлено: {filtered}");
+                                            field.push_str(&cleaned);
+                                            app.status = format!("Вставлено: {cleaned}");
+                                            app.error = None;
+                                        }
+                                    }
+                                    Err(e) => {
+                                        app.error = Some(e);
+                                    }
+                                }
+                            }
+                            KeyCode::Char('r')
+                            | KeyCode::Char('R')
+                            | KeyCode::Char('к')
+                            | KeyCode::Char('К') => {
+                                if let Some((r, g, b)) = app.rgb {
+                                    let text = if alt {
+                                        format!("RGB: {r}, {g}, {b}")
                                     } else {
-                                        // Вставляем в поле, которое сейчас в фокусе
-                                        let field = app.current_field_mut();
-                                        field.push_str(&filtered);
-                                        app.status = format!("Вставлено: {filtered}");
-                                        app.error = None;
+                                        format!("R {r}\nG {g}\nB {b}")
+                                    };
+                                    match copy_to_clipboard(&text) {
+                                        Ok(()) => {
+                                            app.status = format!("Скопировано: {text}");
+                                        }
+                                        Err(e) => {
+                                            app.error = Some(e);
+                                        }
                                     }
                                 }
-                                Err(e) => {
-                                    app.error = Some(e);
+                            }
+                            KeyCode::Char('c')
+                            | KeyCode::Char('C')
+                            | KeyCode::Char('с')
+                            | KeyCode::Char('С') => {
+                                if let Some((c, m, y, k)) = app.cmyk {
+                                    let text = if alt {
+                                        format!("CMYK: {c}, {m}, {y}, {k}")
+                                    } else {
+                                        format!("C {c}\nM {m}\nY {y}\nK {k}")
+                                    };
+                                    match copy_to_clipboard(&text) {
+                                        Ok(()) => {
+                                            app.status = format!("Скопировано: {text}");
+                                        }
+                                        Err(e) => {
+                                            app.error = Some(e);
+                                        }
+                                    }
                                 }
                             }
-                        }
-                        KeyCode::Char('r')
-                        | KeyCode::Char('R')
-                        | KeyCode::Char('к')
-                        | KeyCode::Char('К') => {
-                            if let Some((r, g, b)) = app.rgb {
-                                let text = if with_alt {
-                                    format!("RGB: {r}, {g}, {b}")
-                                } else {
-                                    format!("R {r}\nG {g}\nB {b}")
-                                };
+                            KeyCode::Char('h')
+                            | KeyCode::Char('H')
+                            | KeyCode::Char('р')
+                            | KeyCode::Char('Р') => {
+                                let text = app.hex_input.trim().to_string();
                                 match copy_to_clipboard(&text) {
                                     Ok(()) => {
-                                        app.status = format!("Скопировано: {text}");
+                                        app.status = "HEX скопирован в буфер".into();
                                     }
                                     Err(e) => {
                                         app.error = Some(e);
                                     }
                                 }
                             }
+                            _ => {}
                         }
-                        KeyCode::Char('c')
-                        | KeyCode::Char('C')
-                        | KeyCode::Char('с')
-                        | KeyCode::Char('С') => {
-                            if let Some((c, m, y, k)) = app.cmyk {
-                                let text = if with_alt {
-                                    format!("CMYK: {c}, {m}, {y}, {k}")
-                                } else {
-                                    format!("C {c}\nM {m}\nY {y}\nK {k}")
-                                };
-                                match copy_to_clipboard(&text) {
-                                    Ok(()) => {
-                                        app.status = format!("Скопировано: {text}");
-                                    }
-                                    Err(e) => {
-                                        app.error = Some(e);
-                                    }
-                                }
-                            }
+                    } else {
+                        if handle_key(app, key.code) {
+                            return Ok(());
                         }
-                        KeyCode::Char('h')
-                        | KeyCode::Char('H')
-                        | KeyCode::Char('р')
-                        | KeyCode::Char('Р') => {
-                            let text = app.hex_input.trim().to_string();
-                            match copy_to_clipboard(&text) {
-                                Ok(()) => {
-                                    app.status = "HEX скопирован в буфер".into();
-                                }
-                                Err(e) => {
-                                    app.error = Some(e);
-                                }
-                            }
-                        }
-                        _ => {}
                     }
-                    continue;
-                }
-
-                if handle_key(app, key.code) {
-                    return Ok(());
                 }
             }
         }
